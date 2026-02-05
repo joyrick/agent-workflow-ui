@@ -11,7 +11,7 @@ export interface Message {
   id: string;
   type: 'user' | 'assistant' | 'workflow';
   content: string;
-  result?: WorkflowResultData;
+  results?: WorkflowResultData[];
   steps?: WorkflowStep[];
   isLoading?: boolean;
 }
@@ -20,6 +20,7 @@ export interface WorkflowStep {
   name: string;
   status: 'pending' | 'running' | 'completed' | 'error';
   output?: string;
+  analysisId?: string;
 }
 
 export interface WorkflowResultData {
@@ -59,13 +60,21 @@ export default function Home() {
     };
 
     const assistantMessageId = (Date.now() + 1).toString();
+    
+    // Initial steps for both analyses
     const initialSteps: WorkflowStep[] = [
-      { name: 'Dokument 1 - Extrakcia', status: 'pending' },
-      { name: 'Dokument 2 - Extrakcia', status: 'pending' },
-      { name: 'Dokument 3 - Extrakcia', status: 'pending' },
-      { name: 'Orchestrátor - Porovnanie', status: 'pending' },
-      { name: 'Klasifikácia', status: 'pending' },
-      { name: 'Finalizácia', status: 'pending' },
+      // Počet podlaží steps
+      { name: '[Počet podlaží] Dokument 1', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Dokument 2', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Dokument 3', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Porovnanie', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Klasifikácia', status: 'pending', analysisId: 'pocet_podlazi' },
+      // Počet parkovacích miest steps
+      { name: '[Počet parkovacích miest] Dokument 1', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Dokument 2', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Dokument 3', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Porovnanie', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Klasifikácia', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
     ];
 
     const assistantMessage: Message = {
@@ -113,7 +122,6 @@ export default function Home() {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            const eventType = line.substring(7);
             continue;
           }
           if (line.startsWith('data: ')) {
@@ -123,27 +131,45 @@ export default function Home() {
               
               // Check what type of event based on data structure
               if (data.name && data.status) {
-                // Step update
+                // Step update - match by name
                 setMessages((prev) =>
                   prev.map((msg) => {
                     if (msg.id !== assistantMessageId) return msg;
                     
-                    const updatedSteps = msg.steps?.map((step) => {
-                      if (step.name === data.name) {
-                        return {
-                          ...step,
+                    // Add new step if it doesn't exist, otherwise update
+                    let stepExists = msg.steps?.some(s => s.name === data.name);
+                    let updatedSteps: WorkflowStep[];
+                    
+                    if (stepExists) {
+                      updatedSteps = msg.steps?.map((step) => {
+                        if (step.name === data.name) {
+                          return {
+                            ...step,
+                            status: data.status as 'pending' | 'running' | 'completed' | 'error',
+                            output: data.output,
+                            analysisId: data.analysisId,
+                          };
+                        }
+                        return step;
+                      }) || [];
+                    } else {
+                      // Add new step
+                      updatedSteps = [
+                        ...(msg.steps || []),
+                        {
+                          name: data.name,
                           status: data.status as 'pending' | 'running' | 'completed' | 'error',
                           output: data.output,
-                        };
-                      }
-                      return step;
-                    });
+                          analysisId: data.analysisId,
+                        }
+                      ];
+                    }
                     
                     return { ...msg, steps: updatedSteps };
                   })
                 );
-              } else if (data.confidence !== undefined) {
-                // Final result
+              } else if (Array.isArray(data)) {
+                // Array of results
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMessageId
@@ -151,7 +177,7 @@ export default function Home() {
                           ...msg,
                           isLoading: false,
                           content: 'Analýza dokončená',
-                          result: data,
+                          results: data,
                         }
                       : msg
                   )
@@ -196,10 +222,10 @@ export default function Home() {
         </div>
         <div>
           <h1 className="text-xl font-semibold text-gray-900">
-            Analýza počtu podlaží
+            Analýza dokumentov
           </h1>
           <p className="text-sm text-gray-500">
-            Agentic workflow pre kontrolu dokumentov
+            Kontrola počtu podlaží a parkovacích miest
           </p>
         </div>
       </header>
@@ -212,11 +238,11 @@ export default function Home() {
               <Building2 size={48} className="text-primary-600" />
             </div>
             <h2 className="text-xl font-medium text-gray-800 mb-2">
-              Vitajte v analýze podlaží
+              Vitajte v analýze dokumentov
             </h2>
             <p className="text-gray-500 max-w-md">
               Zadajte text na analýzu a workflow automaticky extrahuje
-              informácie o počte podlaží z dokumentov a vyhodnotí ich zhodu.
+              informácie o počte podlaží a parkovacích miest z dokumentov a vyhodnotí ich zhodu.
             </p>
           </div>
         )}
@@ -235,8 +261,8 @@ export default function Home() {
                 {message.isLoading && message.steps && (
                   <WorkflowProgress steps={message.steps} />
                 )}
-                {!message.isLoading && message.result && (
-                  <WorkflowResult result={message.result} />
+                {!message.isLoading && message.results && message.results.length > 0 && (
+                  <WorkflowResult results={message.results} />
                 )}
               </div>
             )}
