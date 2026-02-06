@@ -32,7 +32,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Zadajte text na analýzu..."
+          placeholder="Opýtajte sa na stavebné povolenie alebo požiadajte o analýzu dokumentov..."
           disabled={disabled}
           rows={1}
           className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none resize-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"

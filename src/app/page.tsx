@@ -5,7 +5,6 @@ import { ChatInput } from '@/components/ChatInput';
 import { ChatMessage } from '@/components/ChatMessage';
 import { WorkflowResult } from '@/components/WorkflowResult';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
-import { Building2 } from 'lucide-react';
 
 export interface Message {
   id: string;
@@ -39,8 +38,15 @@ export interface WorkflowResultData {
   };
 }
 
+// Chat history for OpenAI context
+interface ChatHistoryEntry {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatHistoryEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +58,112 @@ export default function Home() {
     scrollToBottom();
   }, [messages]);
 
+  // Run the document analysis workflow
+  const runAnalysisWorkflow = async (assistantMessageId: string) => {
+    // Set up initial steps
+    const initialSteps: WorkflowStep[] = [
+      { name: '[Počet podlaží] Dokument 1', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Dokument 2', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Dokument 3', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Porovnanie', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet podlaží] Klasifikácia', status: 'pending', analysisId: 'pocet_podlazi' },
+      { name: '[Počet parkovacích miest] Dokument 1', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Dokument 2', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Dokument 3', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Porovnanie', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Počet parkovacích miest] Klasifikácia', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+    ];
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantMessageId
+          ? { ...msg, steps: initialSteps }
+          : msg
+      )
+    );
+
+    const response = await fetch('/api/workflow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: 'analyze' }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Chyba pri spracovaní');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('Nie je možné čítať odpoveď');
+    }
+
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) continue;
+        if (line.startsWith('data: ')) {
+          const dataStr = line.substring(6);
+          try {
+            const data = JSON.parse(dataStr);
+
+            if (data.name && data.status) {
+              // Step update
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id !== assistantMessageId) return msg;
+                  const stepExists = msg.steps?.some(s => s.name === data.name);
+                  let updatedSteps: WorkflowStep[];
+                  if (stepExists) {
+                    updatedSteps = msg.steps?.map((step) =>
+                      step.name === data.name
+                        ? { ...step, status: data.status, output: data.output, analysisId: data.analysisId }
+                        : step
+                    ) || [];
+                  } else {
+                    updatedSteps = [
+                      ...(msg.steps || []),
+                      { name: data.name, status: data.status, output: data.output, analysisId: data.analysisId },
+                    ];
+                  }
+                  return { ...msg, steps: updatedSteps };
+                })
+              );
+            } else if (Array.isArray(data)) {
+              // Results
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, isLoading: false, content: 'Analýza dokončená', results: data }
+                    : msg
+                )
+              );
+              // Add to chat history
+              setChatHistory((prev) => [
+                ...prev,
+                { role: 'assistant', content: `Analýza dokončená. Výsledky: ${JSON.stringify(data.map((r: any) => ({ name: r.name, value: r.value, note: r.note })))}` },
+              ]);
+            } else if (data.message) {
+              throw new Error(data.message);
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+  };
+
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -60,137 +172,61 @@ export default function Home() {
     };
 
     const assistantMessageId = (Date.now() + 1).toString();
-    
-    // Initial steps for both analyses
-    const initialSteps: WorkflowStep[] = [
-      // Počet podlaží steps
-      { name: '[Počet podlaží] Dokument 1', status: 'pending', analysisId: 'pocet_podlazi' },
-      { name: '[Počet podlaží] Dokument 2', status: 'pending', analysisId: 'pocet_podlazi' },
-      { name: '[Počet podlaží] Dokument 3', status: 'pending', analysisId: 'pocet_podlazi' },
-      { name: '[Počet podlaží] Porovnanie', status: 'pending', analysisId: 'pocet_podlazi' },
-      { name: '[Počet podlaží] Klasifikácia', status: 'pending', analysisId: 'pocet_podlazi' },
-      // Počet parkovacích miest steps
-      { name: '[Počet parkovacích miest] Dokument 1', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
-      { name: '[Počet parkovacích miest] Dokument 2', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
-      { name: '[Počet parkovacích miest] Dokument 3', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
-      { name: '[Počet parkovacích miest] Porovnanie', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
-      { name: '[Počet parkovacích miest] Klasifikácia', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
-    ];
-
     const assistantMessage: Message = {
       id: assistantMessageId,
-      type: 'workflow',
-      content: 'Spracovávam vašu požiadavku...',
+      type: 'assistant',
+      content: 'Premýšľam...',
       isLoading: true,
-      steps: initialSteps,
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsProcessing(true);
 
+    // Add user message to chat history
+    const updatedHistory = [...chatHistory, { role: 'user' as const, content }];
+    setChatHistory(updatedHistory);
+
     try {
-      const response = await fetch('/api/workflow', {
+      // Step 1: Ask the chat agent what to do
+      const chatResponse = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ input: content }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedHistory }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!chatResponse.ok) {
+        const errorData = await chatResponse.json();
         throw new Error(errorData.error || 'Chyba pri spracovaní');
       }
 
-      // Handle SSE stream
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const chatData = await chatResponse.json();
 
-      if (!reader) {
-        throw new Error('Nie je možné čítať odpoveď');
-      }
+      if (chatData.type === 'tool_call' && chatData.tool === 'analyze_documents') {
+        // Agent decided to run analysis
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? { ...msg, type: 'workflow' as const, content: chatData.preMessage, isLoading: true }
+              : msg
+          )
+        );
 
-      let buffer = '';
+        await runAnalysisWorkflow(assistantMessageId);
+      } else {
+        // Regular chat response
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? { ...msg, isLoading: false, content: chatData.content }
+              : msg
+          )
+        );
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            continue;
-          }
-          if (line.startsWith('data: ')) {
-            const dataStr = line.substring(6);
-            try {
-              const data = JSON.parse(dataStr);
-              
-              // Check what type of event based on data structure
-              if (data.name && data.status) {
-                // Step update - match by name
-                setMessages((prev) =>
-                  prev.map((msg) => {
-                    if (msg.id !== assistantMessageId) return msg;
-                    
-                    // Add new step if it doesn't exist, otherwise update
-                    let stepExists = msg.steps?.some(s => s.name === data.name);
-                    let updatedSteps: WorkflowStep[];
-                    
-                    if (stepExists) {
-                      updatedSteps = msg.steps?.map((step) => {
-                        if (step.name === data.name) {
-                          return {
-                            ...step,
-                            status: data.status as 'pending' | 'running' | 'completed' | 'error',
-                            output: data.output,
-                            analysisId: data.analysisId,
-                          };
-                        }
-                        return step;
-                      }) || [];
-                    } else {
-                      // Add new step
-                      updatedSteps = [
-                        ...(msg.steps || []),
-                        {
-                          name: data.name,
-                          status: data.status as 'pending' | 'running' | 'completed' | 'error',
-                          output: data.output,
-                          analysisId: data.analysisId,
-                        }
-                      ];
-                    }
-                    
-                    return { ...msg, steps: updatedSteps };
-                  })
-                );
-              } else if (Array.isArray(data)) {
-                // Array of results
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessageId
-                      ? {
-                          ...msg,
-                          isLoading: false,
-                          content: 'Analýza dokončená',
-                          results: data,
-                        }
-                      : msg
-                  )
-                );
-              } else if (data.message) {
-                // Error
-                throw new Error(data.message);
-              }
-            } catch (parseError) {
-              // Ignore parse errors for incomplete data
-            }
-          }
-        }
+        // Add assistant response to chat history
+        setChatHistory((prev) => [
+          ...prev,
+          { role: 'assistant', content: chatData.content },
+        ]);
       }
     } catch (error) {
       setMessages((prev) =>
@@ -219,10 +255,10 @@ export default function Home() {
       <header className="flex items-center gap-3 px-6 py-4 border-b border-gray-200">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">
-            Analýza dokumentov
+            Stavebné povolenie
           </h1>
           <p className="text-sm text-gray-500">
-            Kontrola počtu podlaží a parkovacích miest
+            Asistent pre stavebné konanie a analýzu dokumentov
           </p>
         </div>
       </header>
@@ -231,15 +267,12 @@ export default function Home() {
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="p-4 rounded-full bg-primary-100 mb-4">
-              <Building2 size={48} className="text-primary-600" />
-            </div>
             <h2 className="text-xl font-medium text-gray-800 mb-2">
-              Vitajte v analýze dokumentov
+              Vitajte
             </h2>
             <p className="text-gray-500 max-w-md">
-              Zadajte text na analýzu a workflow automaticky extrahuje
-              informácie o počte podlaží a parkovacích miest z dokumentov a vyhodnotí ich zhodu.
+              Som váš asistent pre stavebné povolenia. Môžete sa ma opýtať na čokoľvek
+              ohľadom stavebného konania, alebo ma požiadať o analýzu nahraných dokumentov.
             </p>
           </div>
         )}
