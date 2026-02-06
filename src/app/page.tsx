@@ -216,10 +216,7 @@ export default function Home() {
   return (
     <main className="flex flex-col h-screen max-w-4xl mx-auto">
       {/* Header */}
-      <header className="flex items-center gap-3 px-6 py-4 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-        <div className="p-2 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg">
-          <Building2 size={24} />
-        </div>
+      <header className="flex items-center gap-3 px-6 py-4 border-b border-gray-200">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">
             Analýza dokumentov
@@ -272,7 +269,7 @@ export default function Home() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 bg-white/80 backdrop-blur-sm px-6 py-4">
+      <div className="border-t border-gray-200 px-6 py-4">
         <ChatInput onSend={handleSendMessage} disabled={isProcessing} />
       </div>
     </main>
