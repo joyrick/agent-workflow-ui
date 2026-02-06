@@ -1,12 +1,13 @@
 import OpenAI from "openai";
 import * as dotenv from "dotenv";
+import { getVectorStoreIds } from "./documentStore";
 dotenv.config({ path: ".env.local" });
 
 const openai = new OpenAI();
 
-// Vector store IDs
-const VECTOR_STORE_1 = "vs_697e524aef9c819182db0e8bbfc98456";
-const VECTOR_STORE_2 = "vs_697e529683e081919d31a8ab7a2bc02a";
+// Vector store IDs (defaults, overridden by document store registry)
+const DEFAULT_VECTOR_STORE_1 = "vs_697e524aef9c819182db0e8bbfc98456";
+const DEFAULT_VECTOR_STORE_2 = "vs_697e529683e081919d31a8ab7a2bc02a";
 
 // Analysis configuration for different check types
 export interface AnalysisConfig {
@@ -35,7 +36,7 @@ export interface WorkflowResult {
   };
 }
 
-// ============ ANALYSIS CONFIGURATIONS ============
+// ============ Akonfigurácie analýz ============
 
 // Počet podlaží (Floor count) configuration
 const podlaziaConfig: AnalysisConfig = {
@@ -288,19 +289,26 @@ async function runSingleAnalysis(
 ): Promise<WorkflowResult> {
   const stepPrefix = `[${config.name}]`;
 
+  // Get vector store IDs dynamically from registry
+  const storeIds = getVectorStoreIds();
+  const vs1 = storeIds[0] || DEFAULT_VECTOR_STORE_1;
+  const vs2 = storeIds[1] || DEFAULT_VECTOR_STORE_2;
+
   // Step 1: Document 1 extraction
   onStep?.({ name: `${stepPrefix} Dokument 1`, status: 'running', analysisId: config.id });
-  const doc1Output = await searchAndExtract(VECTOR_STORE_1, config.searchQueries[0], config.extractionInstruction);
+  const doc1Output = await searchAndExtract(vs1, config.searchQueries[0], config.extractionInstruction);
   onStep?.({ name: `${stepPrefix} Dokument 1`, status: 'completed', output: doc1Output, analysisId: config.id });
 
   // Step 2: Document 2 extraction
   onStep?.({ name: `${stepPrefix} Dokument 2`, status: 'running', analysisId: config.id });
-  const doc2Output = await searchAndExtract(VECTOR_STORE_2, config.searchQueries[1] || config.searchQueries[0], config.extractionInstruction);
+  const doc2Output = await searchAndExtract(vs2, config.searchQueries[1] || config.searchQueries[0], config.extractionInstruction);
   onStep?.({ name: `${stepPrefix} Dokument 2`, status: 'completed', output: doc2Output, analysisId: config.id });
 
-  // Step 3: Document 3 extraction
+  // Step 3: Search across all additional vector stores
   onStep?.({ name: `${stepPrefix} Dokument 3`, status: 'running', analysisId: config.id });
-  const doc3Output = await searchAndExtract(VECTOR_STORE_2, config.searchQueries[2] || config.searchQueries[0], config.extractionInstruction);
+  // Use a third store if available, otherwise re-query vs2 with different query
+  const vs3 = storeIds.length > 2 ? storeIds[2] : vs2;
+  const doc3Output = await searchAndExtract(vs3, config.searchQueries[2] || config.searchQueries[0], config.extractionInstruction);
   onStep?.({ name: `${stepPrefix} Dokument 3`, status: 'completed', output: doc3Output, analysisId: config.id });
 
   // Step 4: Run orchestrator

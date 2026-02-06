@@ -1,6 +1,7 @@
 'use client';
 
-import { User, Bot, Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import { User, Loader2 } from 'lucide-react';
 
 interface ChatMessageProps {
   type: 'user' | 'assistant';
@@ -13,15 +14,21 @@ export function ChatMessage({ type, content, isLoading }: ChatMessageProps) {
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div
-        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-          isUser
-            ? 'bg-gradient-to-br from-gray-700 to-gray-800'
-            : 'bg-gradient-to-br from-primary-500 to-primary-600'
-        } text-white shadow-md`}
-      >
-        {isUser ? <User size={20} /> : <Bot size={20} />}
-      </div>
+      {isUser ? (
+        <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800 text-white shadow-md">
+          <User size={20} />
+        </div>
+      ) : (
+        <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 shadow-md flex items-center justify-center">
+          <Image
+            src="/logo_biele_bez_gradientu.png"
+            alt="Povolean"
+            width={28}
+            height={28}
+            className="object-contain"
+          />
+        </div>
+      )}
       <div
         className={`max-w-[80%] px-4 py-3 rounded-2xl ${
           isUser
