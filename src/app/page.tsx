@@ -8,7 +8,7 @@ import { WorkflowResult } from '@/components/WorkflowResult';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
 import { DocumentHierarchy } from '@/components/DocumentHierarchy';
 import { FileDropZone } from '@/components/FileDropZone';
-import { MessageSquare, FolderOpen } from 'lucide-react';
+import { MessageSquare, FolderOpen, SquarePen } from 'lucide-react';
 
 export interface Message {
   id: string;
@@ -411,15 +411,13 @@ export default function Home() {
     <main className="flex flex-col h-screen max-w-4xl mx-auto">
       {/* Header */}
       <header className="flex items-center gap-3 px-6 py-4 border-b border-gray-200">
-        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-          <Image
-            src="/logo_biele_bez_gradientu.png"
-            alt="Povolean"
-            width={22}
-            height={22}
-            className="object-contain"
-          />
-        </div>
+        <Image
+          src="/iba_biele_logo.png"
+          alt="Povolean"
+          width={32}
+          height={32}
+          className="object-contain"
+        />
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-gray-900">
             Stavebné povolenie
@@ -428,6 +426,13 @@ export default function Home() {
             Asistent pre stavebné konanie a analýzu dokumentov
           </p>
         </div>
+        <button
+          onClick={() => { setMessages([]); setChatHistory([]); }}
+          title="Nová konverzácia"
+          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
+        >
+          <SquarePen size={20} />
+        </button>
       </header>
 
       {/* Tabs */}
@@ -484,6 +489,13 @@ export default function Home() {
                 <p className="text-gray-400 text-sm mt-3">
                   Pretiahnite súbory do chatu pre pridanie dokumentov
                 </p>
+                <button
+                  onClick={() => handleSendMessage('Vygenerovať bilančné tabuľky pre objekt z dostupnej dokumentácie')}
+                  disabled={isProcessing}
+                  className="mt-4 px-5 py-2.5 rounded-xl border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 hover:text-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Vygenerovať bilančné tabuľky pre objekt z dostupnej dokumentácie
+                </button>
               </div>
             )}
 

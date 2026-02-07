@@ -19,12 +19,13 @@ export function ChatMessage({ type, content, isLoading }: ChatMessageProps) {
           <User size={20} />
         </div>
       ) : (
-        <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 shadow-md flex items-center justify-center">
+        <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-gray-800 shadow-md flex items-center justify-center">
           <Image
             src="/logo_biele_bez_gradientu.png"
             alt="Povolean"
-            width={28}
-            height={28}
+            width={21}
+            height={21}
+            opacity={0.4}
             className="object-contain"
           />
         </div>
