@@ -1,15 +1,56 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { User, Loader2 } from 'lucide-react';
+
+function TypewriterText({ text }: { text: string }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [isDone, setIsDone] = useState(false);
+  const initialTextRef = useRef(text);
+
+  useEffect(() => {
+    // Only animate if this is the first render with this text
+    // (i.e., the message just appeared)
+    if (initialTextRef.current !== text) {
+      // Content changed after initial mount — show immediately
+      setDisplayedText(text);
+      setIsDone(true);
+      return;
+    }
+
+    let index = 0;
+    setDisplayedText('');
+    setIsDone(false);
+
+    const interval = setInterval(() => {
+      index++;
+      setDisplayedText(text.slice(0, index));
+      if (index >= text.length) {
+        clearInterval(interval);
+        setIsDone(true);
+      }
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return (
+    <p className="whitespace-pre-wrap">
+      {displayedText}
+      {!isDone && <span className="inline-block w-[2px] h-[1em] bg-gray-400 ml-0.5 animate-pulse align-text-bottom" />}
+    </p>
+  );
+}
 
 interface ChatMessageProps {
   type: 'user' | 'assistant';
   content: string;
   isLoading?: boolean;
+  animate?: boolean;
 }
 
-export function ChatMessage({ type, content, isLoading }: ChatMessageProps) {
+export function ChatMessage({ type, content, isLoading, animate = true }: ChatMessageProps) {
   const isUser = type === 'user';
 
   return (
@@ -25,8 +66,7 @@ export function ChatMessage({ type, content, isLoading }: ChatMessageProps) {
             alt="Povolean"
             width={21}
             height={21}
-            opacity={0.4}
-            className="object-contain"
+            className="object-contain opacity-85"
           />
         </div>
       )}
@@ -43,7 +83,11 @@ export function ChatMessage({ type, content, isLoading }: ChatMessageProps) {
             <span className="text-gray-500">{content}</span>
           </div>
         ) : (
-          <p className="whitespace-pre-wrap">{content}</p>
+          isUser || !animate ? (
+            <p className="whitespace-pre-wrap">{content}</p>
+          ) : (
+            <TypewriterText text={content} />
+          )
         )}
       </div>
     </div>
