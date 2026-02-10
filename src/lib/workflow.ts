@@ -25,7 +25,7 @@ export interface WorkflowResult {
   value: string;
   confidence: number;
   note: string;
-  noteType: "zhoda" | "problem";
+  noteType: "zhoda" | "problem" | "nedostatok";
   details: {
     doc1: string;
     doc2: string;
@@ -177,10 +177,142 @@ Nepridávaj žiadny ďalší text.`,
   }
 };
 
+// Celková zastavaná plocha (Total built-up area) configuration
+const zastavanaPlochaConfig: AnalysisConfig = {
+  id: "celkova_zastavana_plocha",
+  name: "Celková zastavaná plocha",
+  extractionInstruction: `Prehľadaj dokument a zisti celkovú zastavanú plochu objektu.
+Odpovedz iba v tomto formáte: Celková zastavaná plocha: X m²
+Ak je uvedená aj plocha jednotlivých podlaží, uveď aj celkovú úžitkovú plochu.
+Nepridávaj žiadny ďalší text.`,
+  searchQueries: [
+    "celková zastavaná plocha",
+    "zastavaná plocha objektu m2",
+    "plocha stavby zastavaná"
+  ],
+  orchestratorPrompt: `Posúď zhodu medzi zistenými hodnotami celkovej zastavanej plochy z rôznych dokumentov.
+Odpovedz iba v tomto formáte: Zhodujú sa: áno/nie
+Nepridávaj žiadny ďalší text.`,
+  valueExtractor: (texts: string[]): string => {
+    for (const text of texts) {
+      // Match patterns like "zastavaná plocha: 450 m²" or "450,5 m2"
+      const match = text.match(/zastavan[áa]\s*ploch[au]?:?\s*([\d\s,.]+)\s*m[²2]/i);
+      if (match) {
+        const value = match[1].trim().replace(/\s/g, '');
+        return `${value} m²`;
+      }
+      // Try generic area pattern
+      const genericMatch = text.match(/([\d\s,.]+)\s*m[²2]/i);
+      if (genericMatch) {
+        const value = genericMatch[1].trim().replace(/\s/g, '');
+        return `${value} m²`;
+      }
+    }
+    return "Nezistené";
+  },
+  confidenceCalculator: (docs: string[], orchestratorOutput: string): number => {
+    const extractArea = (text: string): number | null => {
+      const match = text.match(/zastavan[áa]\s*ploch[au]?:?\s*([\d\s,.]+)\s*m[²2]/i);
+      if (match) {
+        return parseFloat(match[1].trim().replace(/\s/g, '').replace(',', '.'));
+      }
+      const genericMatch = text.match(/([\d\s,.]+)\s*m[²2]/i);
+      if (genericMatch) {
+        return parseFloat(genericMatch[1].trim().replace(/\s/g, '').replace(',', '.'));
+      }
+      return null;
+    };
+
+    const areas = docs.map(extractArea).filter(x => x !== null);
+    let matches = 0;
+    let total = 0;
+
+    if (areas.length > 1) {
+      // Allow 5% tolerance for area comparisons
+      const reference = areas[0]!;
+      const allClose = areas.every(a => Math.abs(a! - reference) / reference <= 0.05);
+      if (allClose) matches += 3;
+      else {
+        const someClose = areas.filter(a => Math.abs(a! - reference) / reference <= 0.05).length;
+        if (someClose > 1) matches += 1;
+      }
+      total += 3;
+    }
+
+    const isMatch = orchestratorOutput.toLowerCase().includes("áno");
+    if (isMatch) matches += 1;
+    total += 1;
+
+    if (total === 0) return 0.5;
+    return Math.min(1, Math.max(0, matches / total));
+  }
+};
+
+// Počet únikových východov (Number of escape exits) configuration
+const unikovyVychodConfig: AnalysisConfig = {
+  id: "pocet_unikovych_vychodov",
+  name: "Počet únikových východov",
+  extractionInstruction: `Prehľadaj dokument a zisti počet únikových východov z objektu.
+Odpovedz iba v tomto formáte: Počet únikových východov: X
+Ak sú rozdelené podľa podlaží alebo typu, uveď celkový počet.
+Nepridávaj žiadny ďalší text.`,
+  searchQueries: [
+    "počet únikových východov",
+    "únikové východy cesty",
+    "evakuácia únikový východ"
+  ],
+  orchestratorPrompt: `Posúď zhodu medzi zistenými počtami únikových východov z rôznych dokumentov.
+Odpovedz iba v tomto formáte: Zhodujú sa: áno/nie
+Nepridávaj žiadny ďalší text.`,
+  valueExtractor: (texts: string[]): string => {
+    for (const text of texts) {
+      const match = text.match(/únikov[ýé]ch?\s*v[ýy]chod[oa]?v?:?\s*(\d+)/i);
+      if (match) {
+        return `${match[1]}`;
+      }
+      // Try alternative patterns
+      const altMatch = text.match(/(\d+)\s*únikov[ýé]ch?\s*v[ýy]chod/i);
+      if (altMatch) {
+        return `${altMatch[1]}`;
+      }
+    }
+    return "Nezistené";
+  },
+  confidenceCalculator: (docs: string[], orchestratorOutput: string): number => {
+    const extractExits = (text: string): number | null => {
+      const match = text.match(/únikov[ýé]ch?\s*v[ýy]chod[oa]?v?:?\s*(\d+)/i);
+      if (match) return parseInt(match[1]);
+      const altMatch = text.match(/(\d+)\s*únikov[ýé]ch?\s*v[ýy]chod/i);
+      if (altMatch) return parseInt(altMatch[1]);
+      return null;
+    };
+
+    const exitCounts = docs.map(extractExits).filter(x => x !== null);
+    let matches = 0;
+    let total = 0;
+
+    if (exitCounts.length > 1) {
+      const unique = new Set(exitCounts);
+      if (unique.size === 1) matches += 3;
+      else if (unique.size === 2) matches += 1;
+      total += 3;
+    }
+
+    const isMatch = orchestratorOutput.toLowerCase().includes("áno");
+    if (isMatch) matches += 1;
+    total += 1;
+
+    if (total === 0) return 0.5;
+    return Math.min(1, Math.max(0, matches / total));
+  }
+};
+
 // All available analysis configurations
 export const ANALYSIS_CONFIGS: AnalysisConfig[] = [
   podlaziaConfig,
-  parkovanieConfig
+  parkovanieConfig,
+  zastavanaPlochaConfig,
+  unikovyVychodConfig
 ];
 
 // ============ HELPER FUNCTIONS ============
@@ -244,7 +376,27 @@ async function chat(systemPrompt: string, userMessage: string): Promise<string> 
 }
 
 // Classify the result
-async function classifyResult(orchestratorOutput: string): Promise<"zhoda" | "problem_s_korespondenciou"> {
+async function classifyResult(orchestratorOutput: string, docOutputs: string[]): Promise<"zhoda" | "problem_s_korespondenciou" | "nedostatok_informacii"> {
+  // First check if most documents lack the requested information
+  const lackingInfo = docOutputs.filter(doc => {
+    const lower = doc.toLowerCase();
+    return lower.includes("nepodarilo sa") 
+      || lower.includes("nenašiel") 
+      || lower.includes("nenašli")
+      || lower.includes("neuvádza")
+      || lower.includes("neuvedené")
+      || lower.includes("nezistené")
+      || lower.includes("nie je uvedené")
+      || lower.includes("nie je možné")
+      || lower.includes("dokument neobsahuje")
+      || lower.includes("informácia nie je");
+  });
+
+  // If majority of docs lack info, classify as nedostatok
+  if (lackingInfo.length >= Math.ceil(docOutputs.length / 2)) {
+    return "nedostatok_informacii";
+  }
+
   const systemPrompt = `### ROLE
 You are a careful classification assistant.
 
@@ -254,10 +406,12 @@ Choose exactly one category based on the orchestrator's output.
 ### CATEGORIES
 - zhoda
 - problem_s_korespondenciou
+- nedostatok_informacii
 
 ### RULES
 - If the documents match (zhodujú sa: áno), return "zhoda".
 - If there is a mismatch or problem, return "problem_s_korespondenciou".
+- If the documents do not contain enough information to determine the value, return "nedostatok_informacii".
 
 ### OUTPUT FORMAT
 Return only the category name, nothing else.`;
@@ -265,6 +419,9 @@ Return only the category name, nothing else.`;
   const result = await chat(systemPrompt, orchestratorOutput);
   const trimmed = result.trim().toLowerCase();
   
+  if (trimmed.includes("nedostatok")) {
+    return "nedostatok_informacii";
+  }
   if (trimmed.includes("zhoda") && !trimmed.includes("problem")) {
     return "zhoda";
   }
@@ -325,11 +482,11 @@ Posúď, či sa hodnoty zhodujú.`;
 
   // Step 5: Classify result
   onStep?.({ name: `${stepPrefix} Klasifikácia`, status: 'running', analysisId: config.id });
-  const category = await classifyResult(orchestratorOutput);
+  const docs = [doc1Output, doc2Output, doc3Output];
+  const category = await classifyResult(orchestratorOutput, docs);
   onStep?.({ name: `${stepPrefix} Klasifikácia`, status: 'completed', output: category, analysisId: config.id });
 
   // Calculate results
-  const docs = [doc1Output, doc2Output, doc3Output];
   const confidence = config.confidenceCalculator(docs, orchestratorOutput);
   const value = config.valueExtractor(docs);
 
@@ -337,6 +494,8 @@ Posúď, či sa hodnoty zhodujú.`;
   let finalOutput = "";
   if (category === "zhoda") {
     finalOutput = `Dokumenty sa zhodujú: ${value}`;
+  } else if (category === "nedostatok_informacii") {
+    finalOutput = `Dokumenty neobsahujú dostatočné informácie o: ${config.name}`;
   } else {
     finalOutput = await chat(
       "Opíš zistený problém s korešpondenciou medzi dokumentmi. Odpovedz stručne po slovensky.",
@@ -346,8 +505,10 @@ Posúď, či sa hodnoty zhodujú.`;
 
   const note = category === "zhoda"
     ? "Zhoda - Dokumenty sa zhodujú"
+    : category === "nedostatok_informacii"
+    ? "Nedostatok informácií v dokumentoch"
     : "Problém s korešpondenciou";
-  const noteType = category === "zhoda" ? "zhoda" : "problem";
+  const noteType = category === "zhoda" ? "zhoda" : category === "nedostatok_informacii" ? "nedostatok" : "problem";
 
   return {
     name: config.name,

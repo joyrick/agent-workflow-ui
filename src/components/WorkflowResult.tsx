@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   CheckCircle2,
   XCircle,
+  AlertCircle,
   ChevronDown,
   ChevronUp,
   FileText,
@@ -15,7 +16,7 @@ interface WorkflowResultData {
   value: string;
   confidence: number;
   note: string;
-  noteType: "zhoda" | "problem";
+  noteType: "zhoda" | "problem" | "nedostatok";
   details: {
     doc1: string;
     doc2: string;
@@ -72,6 +73,7 @@ function ResultRow({ result, onToggleDetails, isExpanded }: {
   isExpanded: boolean;
 }) {
   const isMatch = result.noteType === 'zhoda';
+  const isLacking = result.noteType === 'nedostatok';
 
   return (
     <>
@@ -84,7 +86,9 @@ function ResultRow({ result, onToggleDetails, isExpanded }: {
           </div>
         </td>
         <td className="px-4 py-4">
-          <span className="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+          <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+            isLacking ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-800'
+          }`}>
             {result.value}
           </span>
         </td>
@@ -95,18 +99,20 @@ function ResultRow({ result, onToggleDetails, isExpanded }: {
           <div className="flex items-center gap-2">
             <div
               className={`p-1.5 rounded-lg ${
-                isMatch ? 'bg-green-100' : 'bg-red-100'
+                isMatch ? 'bg-green-100' : isLacking ? 'bg-amber-100' : 'bg-red-100'
               }`}
             >
               {isMatch ? (
                 <CheckCircle2 size={16} className="text-green-600" />
+              ) : isLacking ? (
+                <AlertCircle size={16} className="text-amber-600" />
               ) : (
                 <XCircle size={16} className="text-red-600" />
               )}
             </div>
             <span
               className={`text-sm font-medium ${
-                isMatch ? 'text-green-700' : 'text-red-700'
+                isMatch ? 'text-green-700' : isLacking ? 'text-amber-700' : 'text-red-700'
               }`}
             >
               {result.note}

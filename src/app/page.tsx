@@ -31,7 +31,7 @@ export interface WorkflowResultData {
   value: string;
   confidence: number;
   note: string;
-  noteType: "zhoda" | "problem";
+  noteType: "zhoda" | "problem" | "nedostatok";
   details: {
     doc1: string;
     doc2: string;
@@ -230,6 +230,16 @@ export default function Home() {
       { name: '[Počet parkovacích miest] Dokument 3', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
       { name: '[Počet parkovacích miest] Porovnanie', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
       { name: '[Počet parkovacích miest] Klasifikácia', status: 'pending', analysisId: 'pocet_parkovacich_miest' },
+      { name: '[Celková zastavaná plocha] Dokument 1', status: 'pending', analysisId: 'celkova_zastavana_plocha' },
+      { name: '[Celková zastavaná plocha] Dokument 2', status: 'pending', analysisId: 'celkova_zastavana_plocha' },
+      { name: '[Celková zastavaná plocha] Dokument 3', status: 'pending', analysisId: 'celkova_zastavana_plocha' },
+      { name: '[Celková zastavaná plocha] Porovnanie', status: 'pending', analysisId: 'celkova_zastavana_plocha' },
+      { name: '[Celková zastavaná plocha] Klasifikácia', status: 'pending', analysisId: 'celkova_zastavana_plocha' },
+      { name: '[Počet únikových východov] Dokument 1', status: 'pending', analysisId: 'pocet_unikovych_vychodov' },
+      { name: '[Počet únikových východov] Dokument 2', status: 'pending', analysisId: 'pocet_unikovych_vychodov' },
+      { name: '[Počet únikových východov] Dokument 3', status: 'pending', analysisId: 'pocet_unikovych_vychodov' },
+      { name: '[Počet únikových východov] Porovnanie', status: 'pending', analysisId: 'pocet_unikovych_vychodov' },
+      { name: '[Počet únikových východov] Klasifikácia', status: 'pending', analysisId: 'pocet_unikovych_vychodov' },
     ];
 
     setMessages((prev) =>
